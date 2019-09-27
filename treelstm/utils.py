@@ -21,13 +21,13 @@ def load_word_vectors(path):
     # saved file not found, read from txt file
     # and create tensors for word vectors
     print('==> File not found, preparing, be patient')
-    count = sum(1 for line in open(path + '.txt', 'r', encoding='utf8', errors='ignore'))
+    count = sum(1 for line in open(path + '.txt', 'r'))
     with open(path + '.txt', 'r') as f:
         contents = f.readline().rstrip('\n').split(' ')
         dim = len(contents[1:])
     words = [None] * (count)
     vectors = torch.zeros(count, dim, dtype=torch.float, device='cpu')
-    with open(path + '.txt', 'r', encoding='utf8', errors='ignore') as f:
+    with open(path + '.txt', 'r') as f:
         idx = 0
         for line in f:
             contents = line.rstrip('\n').split(' ')
@@ -35,7 +35,7 @@ def load_word_vectors(path):
             values = list(map(float, contents[1:]))
             vectors[idx] = torch.tensor(values, dtype=torch.float, device='cpu')
             idx += 1
-    with open(path + '.vocab', 'w', encoding='utf8', errors='ignore') as f:
+    with open(path + '.vocab', 'w') as f:
         for word in words:
             f.write(word + '\n')
     vocab = Vocab(filename=path + '.vocab')

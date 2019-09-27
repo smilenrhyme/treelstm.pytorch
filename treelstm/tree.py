@@ -31,3 +31,37 @@ class Tree(object):
             count += 1
         self._depth = count
         return self._depth
+
+
+# ConstTree object from stanfordnlp/treelstm
+class ConstTree(object):
+    def __init__(self):
+        self.left = None
+        self.right = None
+
+    def size(self):
+        self.size = 1
+        if self.left is not None:
+            self.size += self.left.size()
+        if self.right is not None:
+            self.size += self.right.size()
+        return self.size
+
+    def set_spans(self):
+        if self.word is not None:
+            self.span = self.word
+            return self.span
+
+        self.span = self.left.set_spans()
+        if self.right is not None:
+            self.span += ' ' + self.right.set_spans()
+        return self.span
+
+    def get_labels(self, spans, labels, dictionary):
+        if self.span in dictionary:
+            spans[self.idx] = self.span
+            labels[self.idx] = dictionary[self.span]
+        if self.left is not None:
+            self.left.get_labels(spans, labels, dictionary)
+        if self.right is not None:
+            self.right.get_labels(spans, labels, dictionary)

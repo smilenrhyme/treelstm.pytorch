@@ -80,25 +80,25 @@ def main():
     logger.debug('==> SICK vocabulary size : %d ' % vocab.size())
 
     # load SICK dataset splits
-    train_file = os.path.join(args.data, 'sick_train.pth')
+    train_file = os.path.join(args.data, 'sick_train_{}.pth'.format(args.use_parse_tree))
     if os.path.isfile(train_file):
         train_dataset = torch.load(train_file)
     else:
-        train_dataset = SICKDataset(train_dir, vocab, args.num_classes)
+        train_dataset = SICKDataset(train_dir, vocab, args.num_classes, args.use_parse_tree)
         torch.save(train_dataset, train_file)
     logger.debug('==> Size of train data   : %d ' % len(train_dataset))
-    dev_file = os.path.join(args.data, 'sick_dev.pth')
+    dev_file = os.path.join(args.data, 'sick_dev_{}.pth'.format(args.use_parse_tree))
     if os.path.isfile(dev_file):
         dev_dataset = torch.load(dev_file)
     else:
-        dev_dataset = SICKDataset(dev_dir, vocab, args.num_classes)
+        dev_dataset = SICKDataset(dev_dir, vocab, args.num_classes, args.use_parse_tree)
         torch.save(dev_dataset, dev_file)
     logger.debug('==> Size of dev data     : %d ' % len(dev_dataset))
-    test_file = os.path.join(args.data, 'sick_test.pth')
+    test_file = os.path.join(args.data, 'sick_test_{}.pth'.format(args.use_parse_tree))
     if os.path.isfile(test_file):
         test_dataset = torch.load(test_file)
     else:
-        test_dataset = SICKDataset(test_dir, vocab, args.num_classes)
+        test_dataset = SICKDataset(test_dir, vocab, args.num_classes, args.use_parse_tree)
         torch.save(test_dataset, test_file)
     logger.debug('==> Size of test data    : %d ' % len(test_dataset))
 
@@ -110,7 +110,8 @@ def main():
         args.hidden_dim,
         args.num_classes,
         args.sparse,
-        args.freeze_embed)
+        args.freeze_embed,
+        args.use_parse_tree)
     criterion = nn.KLDivLoss()
 
     # for words common to dataset vocab and GLOVE, use GLOVE vectors

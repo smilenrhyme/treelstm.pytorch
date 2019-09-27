@@ -24,6 +24,8 @@ def parse_args():
                         help='Number of classes in dataset')
     parser.add_argument('--freeze_embed', action='store_true',
                         help='Freeze word embeddings')
+    parser.add_argument('--use_parse_tree', default='constituency', type=str,
+                        help='Use dependency or constituency tree')
     # training arguments
     parser.add_argument('--epochs', default=15, type=int,
                         help='number of total epochs to run')
