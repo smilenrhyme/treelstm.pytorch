@@ -75,8 +75,6 @@ class BinaryTreeLSTM(nn.Module):
 
     def forward(self, tree, inputs):
         if tree.left is None and tree.right is None:
-            print "inputs size : ", inputs.size()
-            print "leaf_index : ", tree.leaf_idx
             tree.state = self.leaf_node_forward(inputs[tree.leaf_idx])
         else:
             lc, lh = self.forward(tree.left, inputs)
