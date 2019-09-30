@@ -48,34 +48,63 @@ class ChildSumTreeLSTM(nn.Module):
         return tree.state
 
 
+class BinaryTreeLeafModule(nn.Module):
+    def __init__(self, in_dim, mem_dim):
+        super(BinaryTreeLeafModule, self).__init__()
+        self.in_dim = in_dim
+        self.mem_dim = mem_dim
+
+        self.cx = nn.Linear(self.in_dim, self.mem_dim)
+        self.ox = nn.Linear(self.in_dim, self.mem_dim)
+
+    def forward(self, inputs):
+        c = self.cx(inputs)
+        c = torch.reshape(c, (1, c.size(0)))
+        o = F.sigmoid(self.ox(inputs))
+        h = o * F.tanh(c)
+        return c, h
+
+
+class BinaryTreeComposer(nn.Module):
+    def __init__(self, in_dim, mem_dim):
+        super(BinaryTreeComposer, self).__init__()
+        self.in_dim = in_dim
+        self.mem_dim = mem_dim
+
+        def new_gate():
+            lh = nn.Linear(self.mem_dim, self.mem_dim)
+            rh = nn.Linear(self.mem_dim, self.mem_dim)
+            return lh, rh
+
+        self.ilh, self.irh = new_gate()
+        self.lflh, self.lfrh = new_gate()
+        self.rflh, self.rfrh = new_gate()
+        self.ulh, self.urh = new_gate()
+        self.olh, self.orh = new_gate()
+
+    def forward(self, lc, lh, rc, rh):
+        i = F.sigmoid(self.ilh(lh) + self.irh(rh))
+        lf = F.sigmoid(self.lflh(lh) + self.lfrh(rh))
+        rf = F.sigmoid(self.rflh(lh) + self.rfrh(rh))
+        o = F.sigmoid(self.olh(lh) + self.orh(rh))
+        update = F.tanh(self.ulh(lh) + self.urh(rh))
+        c = i*update + lf*lc + rf*rc
+        h = torch.mul(o, F.tanh(c))
+        return c, h
+
+
 # module for BinaryTreeLSTM
 class BinaryTreeLSTM(nn.Module):
     def __init__(self, in_dim, mem_dim):
         super(BinaryTreeLSTM, self).__init__()
         self.in_dim = in_dim
         self.mem_dim = mem_dim
-        self.ioux = nn.Linear(self.mem_dim, 5 * self.mem_dim)
-        self.leaf_c = nn.Linear(self.in_dim, self.mem_dim)
-
-    def leaf_node_forward(self, inputs):
-        c = self.leaf_c(inputs)
-        c = torch.reshape(c, (1, c.size(0)))
-        o = F.sigmoid(c)
-        h = torch.mul(o, F.tanh(c))
-        return c, h
-
-    def node_forward(self, lc, lh, rc, rh):
-        iou = self.ioux(lh) + self.ioux(rh)
-        i, o, u, lf, rf = torch.split(iou, iou.size(1) // 5, dim=1)
-        i, o, u = F.sigmoid(i), F.sigmoid(o), F.tanh(u)
-
-        c = torch.mul(i, u) + torch.mul(lf, lc) + torch.mul(rf, rc)
-        h = torch.mul(o, F.tanh(c))
-        return c, h
+        self.leaf_module = BinaryTreeLeafModule(in_dim, mem_dim)
+        self.composer = BinaryTreeComposer(in_dim, mem_dim)
 
     def forward(self, tree, inputs):
         if tree.left is None and tree.right is None:
-            tree.state = self.leaf_node_forward(inputs[tree.leaf_idx])
+            tree.state = self.leaf_module.forward(inputs[tree.leaf_idx])
         else:
             lc, lh = self.forward(tree.left, inputs)
             if lc is None and lh is None:
@@ -87,7 +116,7 @@ class BinaryTreeLSTM(nn.Module):
                 rc = inputs[0].detach().new(1, self.mem_dim).fill_(0.).requires_grad_()
                 rh = inputs[0].detach().new(1, self.mem_dim).fill_(0.).requires_grad_()
 
-            tree.state = self.node_forward(lc, lh, rc, rh)
+            tree.state = self.composer.forward(lc, lh, rc, rh)
         return tree.state
 
 
