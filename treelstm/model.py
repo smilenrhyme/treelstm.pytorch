@@ -56,12 +56,16 @@ class BinaryTreeLeafModule(nn.Module):
 
         self.cx = nn.Linear(self.in_dim, self.mem_dim)
         self.ox = nn.Linear(self.in_dim, self.mem_dim)
+        self.ux = nn.Linear(self.in_dim, self.mem_dim)
 
     def forward(self, inputs):
-        c = self.cx(inputs)
-        c = torch.reshape(c, (1, c.size(0)))
+        i = F.sigmoid(self.cx(inputs))
+        u = F.tanh(self.ux(inputs))
+        c = i * u
         o = F.sigmoid(self.ox(inputs))
         h = o * F.tanh(c)
+        # c = torch.reshape(c, (1, c.size(0)))
+        # h = torch.reshape(h, (1, h.size(0)))
         return c, h
 
 
@@ -72,22 +76,23 @@ class BinaryTreeComposer(nn.Module):
         self.mem_dim = mem_dim
 
         def new_gate():
-            lh = nn.Linear(self.mem_dim, self.mem_dim)
-            rh = nn.Linear(self.mem_dim, self.mem_dim)
-            return lh, rh
+            Ul = nn.Linear(self.mem_dim, self.mem_dim)
+            Ur = nn.Linear(self.mem_dim, self.mem_dim, bias=False)
+            return Ul, Ur
 
-        self.ilh, self.irh = new_gate()
-        self.lflh, self.lfrh = new_gate()
-        self.rflh, self.rfrh = new_gate()
-        self.ulh, self.urh = new_gate()
-        self.olh, self.orh = new_gate()
+        self.i_Ul, self.i_Ur = new_gate()
+        self.lf_Ul, self.lf_Ur = new_gate()
+        self.rf_Ul, self.rf_Ur = new_gate()
+        self.u_Ul, self.u_Ur = new_gate()
+        self.o_Ul, self.o_Ur = new_gate()
 
     def forward(self, lc, lh, rc, rh):
-        i = F.sigmoid(self.ilh(lh) + self.irh(rh))
-        lf = F.sigmoid(self.lflh(lh) + self.lfrh(rh))
-        rf = F.sigmoid(self.rflh(lh) + self.rfrh(rh))
-        o = F.sigmoid(self.olh(lh) + self.orh(rh))
-        update = F.tanh(self.ulh(lh) + self.urh(rh))
+        i = F.sigmoid(self.i_Ul(lh) + self.i_Ur(rh))
+
+        lf = F.sigmoid(self.lf_Ul(lh) + self.lf_Ur(rh))
+        rf = F.sigmoid(self.rf_Ul(lh) + self.rf_Ur(rh))
+        o = F.sigmoid(self.o_Ul(lh) + self.o_Ur(rh))
+        update = F.tanh(self.u_Ul(lh) + self.u_Ur(rh))
         c = i*update + lf*lc + rf*rc
         h = torch.mul(o, F.tanh(c))
         return c, h
@@ -104,6 +109,7 @@ class BinaryTreeLSTM(nn.Module):
 
     def forward(self, tree, inputs):
         if tree.left is None and tree.right is None:
+            print "tree leaf_idx : ", tree.leaf_idx
             tree.state = self.leaf_module.forward(inputs[tree.leaf_idx])
         else:
             lc, lh = self.forward(tree.left, inputs)
@@ -133,11 +139,12 @@ class Similarity(nn.Module):
     def forward(self, lvec, rvec):
         mult_dist = torch.mul(lvec, rvec)
         abs_dist = torch.abs(torch.add(lvec, -rvec))
-        vec_dist = torch.cat((mult_dist, abs_dist), 1)
+
+        vec_dist = torch.cat((mult_dist, abs_dist))
 
         out = F.sigmoid(self.wh(vec_dist))
-        out = F.log_softmax(self.wp(out), dim=1)
-        return out
+        out = F.log_softmax(self.wp(out), dim=0)
+        return out.reshape(1, out.size(0))
 
 
 # putting the whole model together

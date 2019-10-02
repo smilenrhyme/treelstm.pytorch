@@ -22,9 +22,9 @@ class Trainer(object):
         total_loss = 0.0
         indices = torch.randperm(len(dataset), dtype=torch.long, device='cpu')
         for idx in tqdm(range(len(dataset)), desc='Training epoch ' + str(self.epoch + 1) + ''):
-            # print('==> Index of data tuple     : %d ' % indices[idx])
+            print('==> Index of data tuple     : %d ' % indices[idx])
             ltree, linput, rtree, rinput, label = dataset[indices[idx]]
-            # print "linput : ", dataset.vocab.convertToLabels(linput.numpy(), -1), " : ", "rinput : ", dataset.vocab.convertToLabels(rinput.numpy(), -1)
+            print "linput : ", dataset.vocab.convertToLabels(linput.numpy(), -1), " : ", "rinput : ", dataset.vocab.convertToLabels(rinput.numpy(), -1)
             target = utils.map_label_to_target(label, dataset.num_classes)
             linput, rinput = linput.to(self.device), rinput.to(self.device)
             target = target.to(self.device)
