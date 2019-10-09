@@ -181,6 +181,7 @@ def main():
                 'args': args, 'epoch': epoch
             }
             logger.debug('==> New optimum found, checkpointing everything now...')
+            trainer.test_sample(train_dataset)
             torch.save(checkpoint, '%s.pt' % os.path.join(args.save, args.expname))
 
 

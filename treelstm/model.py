@@ -107,22 +107,22 @@ class BinaryTreeLSTM(nn.Module):
         self.leaf_module = BinaryTreeLeafModule(in_dim, mem_dim)
         self.composer = BinaryTreeComposer(in_dim, mem_dim)
 
-    def forward(self, tree, inputs):
+    def forward(self, tree, inputs, idx_to_state):
         if tree.left is None and tree.right is None:
-            print "tree leaf_idx : ", tree.leaf_idx
             tree.state = self.leaf_module.forward(inputs[tree.leaf_idx])
         else:
-            lc, lh = self.forward(tree.left, inputs)
+            lc, lh = self.forward(tree.left, inputs, idx_to_state)
             if lc is None and lh is None:
                 lc = inputs[0].detach().new(1, self.mem_dim).fill_(0.).requires_grad_()
                 lh = inputs[0].detach().new(1, self.mem_dim).fill_(0.).requires_grad_()
 
-            rc, rh = self.forward(tree.right, inputs)
+            rc, rh = self.forward(tree.right, inputs, idx_to_state)
             if rc is None and rh is None:
                 rc = inputs[0].detach().new(1, self.mem_dim).fill_(0.).requires_grad_()
                 rh = inputs[0].detach().new(1, self.mem_dim).fill_(0.).requires_grad_()
 
             tree.state = self.composer.forward(lc, lh, rc, rh)
+        idx_to_state[tree.idx] = tree.state
         return tree.state
 
 
@@ -161,10 +161,15 @@ class SimilarityTreeLSTM(nn.Module):
             self.model = BinaryTreeLSTM(in_dim, mem_dim)
         self.similarity = Similarity(mem_dim, hidden_dim, num_classes)
 
-    def forward(self, ltree, linputs, rtree, rinputs):
+    def forward(self, ltree, linputs, rtree, rinputs, print_state=False):
         linputs = self.emb(linputs)
         rinputs = self.emb(rinputs)
-        lstate, lhidden = self.model(ltree, linputs)
-        rstate, rhidden = self.model(rtree, rinputs)
+        l_idx_state, r_idx_state = {}, {}
+        lstate, lhidden = self.model(ltree, linputs, l_idx_state)
+        if print_state:
+            print "lstate : ", lstate
+            print "lhidden : ", lhidden
+
+        rstate, rhidden = self.model(rtree, rinputs, r_idx_state)
         output = self.similarity(lstate, rstate)
         return output

@@ -22,7 +22,7 @@ def parse_args():
                         help='Size of classifier MLP')
     parser.add_argument('--num_classes', default=5, type=int,
                         help='Number of classes in dataset')
-    parser.add_argument('--freeze_embed', action='store_true',
+    parser.add_argument('--freeze_embed', action='store_false',
                         help='Freeze word embeddings')
     parser.add_argument('--use_parse_tree', default='constituency', type=str,
                         help='Use dependency or constituency tree')
