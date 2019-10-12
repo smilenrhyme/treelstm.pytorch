@@ -46,7 +46,7 @@ def parse_args():
     cuda_parser = parser.add_mutually_exclusive_group(required=False)
     cuda_parser.add_argument('--cuda', dest='cuda', action='store_true')
     cuda_parser.add_argument('--no-cuda', dest='cuda', action='store_false')
-    parser.set_defaults(cuda=True)
+    parser.set_defaults(cuda=False)
 
     args = parser.parse_args()
     return args

@@ -1,7 +1,6 @@
 import torch
 
-from treelstm import SimilarityTreeLSTM
-from treelstm import Vocab
+from treelstm import SimilarityTreeLSTM, utils
 from treelstm import Constants
 import random
 import numpy as np
@@ -11,11 +10,11 @@ from treelstm.tree import ConstTree
 
 
 class ChunkEmbedding(object):
-    def __init__(self, model, pickle_file, vocab_file, classpath, temp_dir, seed=123):
+    def __init__(self, model, pickle_file, vocab, classpath, temp_dir, seed=123):
         self._set_seed(seed)
         self.sim_model = model
         self._load_model(pickle_file)
-        self.vocab = self._load_vocab(vocab_file)
+        self.vocab = vocab
         self.classpath = classpath
         self.temp_dir = temp_dir
 
@@ -36,12 +35,6 @@ class ChunkEmbedding(object):
             torch.load(pickle_file)['model'])
         self.sim_model.to(device)
         self.sim_model.eval()
-
-    @staticmethod
-    def _load_vocab(vocab_file):
-        return Vocab(filename=vocab_file,
-                      data=[Constants.PAD_WORD, Constants.UNK_WORD,
-                            Constants.BOS_WORD, Constants.EOS_WORD])
 
     @staticmethod
     def __read_constituency_tree(parents, words):
@@ -100,8 +93,8 @@ class ChunkEmbedding(object):
     def get_chunk_representation(self, sentence, chunk, const_tree=None, idx_span_mapping=None, mode='non_leaf'):
         if mode == 'leaf':
             with torch.no_grad():
-                emb_input = self.sim_model.emb(self.__convert_to_vocab(chunk[0]))
-                c, h = self.sim_model.model.leaf_module(emb_input)
+                emb_input = self.sim_model.emb(self.__convert_to_vocab(chunk))
+                c, h = self.sim_model.model.leaf_module(torch.squeeze(emb_input))
                 return h
         else:
             chunk_string = ' '.join(chunk)
@@ -126,13 +119,16 @@ class ChunkEmbedding(object):
             idx_span_mapping[root.idx] = root.span.lower()
             self.inOrder(root.right, idx_span_mapping)
 
-    def constituent_parse(self, sentence, tokenize=True):
+    def constituent_parse(self, sentence, tokenize=False):
         dirpath = os.path.dirname(self.temp_dir)
         parentpath = os.path.join(dirpath, 'temp.cparents')
         tokpath = os.path.join(dirpath, 'temp.toks')
         tokenize_flag = '-tokenize - ' if tokenize else ''
         cmd = ('java -cp %s MinimalConstituencyParse -tokpath %s -parentpath %s %s -sentence %s' % (self.classpath, tokpath, parentpath, tokenize_flag, '"' + sentence + '"'))
-        os.system(cmd)
+        exit_status = os.system(cmd)
+
+        if exit_status != 0:
+            raise Exception("Constituent parse failed..")
 
         with open(tokpath, 'r') as tp:
             for line in tp:
@@ -142,39 +138,46 @@ class ChunkEmbedding(object):
             for line in pp:
                 parents = map(int, line.split())
 
-        const_tree = self.__read_constituency_tree(parents, toks)
-        const_tree.set_spans()
-        idx_span_mapping = {}
-        self.inOrder(const_tree, idx_span_mapping)
-        return const_tree, idx_span_mapping
+        try:
+            const_tree = self.__read_constituency_tree(parents, toks)
+            const_tree.set_spans()
+            idx_span_mapping = {}
+            self.inOrder(const_tree, idx_span_mapping)
+            return const_tree, idx_span_mapping
+        except Exception as e:
+            print "__read_constituency_tree failed :", sentence
+            raise Exception("__read_constituency_tree failed")
 
-    def get_embedding(self, sentence, chunk):
+    def get_embedding(self, sentence, chunk, const_tree, idx_span_mapping):
         sentence = sentence.strip().lower()
         chunk = [e.strip().lower() for e in chunk]
 
-        if len(chunk) == 0 or len(set(sentence.split()).intersection(set(chunk))) != len(chunk):
-            return "Invalid chunk for given sentence !!"
+        if len(chunk) == 0 or set(sentence.split()).intersection(set(chunk)) != set(chunk):
+            # Invalid chunk for given sentence !!
+            return torch.zeros(1, 1)
 
         if len(chunk) == 1:
-            return self.get_chunk_representation(sentence, chunk, mode='leaf')
+            return self.get_chunk_representation(sentence, chunk[0], const_tree, idx_span_mapping, mode='leaf')
         else:
             # check chunk is constituent or not
-            const_tree, idx_span_mapping = self.constituent_parse(sentence)
             if ' '.join(chunk) in idx_span_mapping.values():
                 # Get non_leaf tree-LSTM representation
                 return self.get_chunk_representation(sentence, chunk, const_tree, idx_span_mapping, mode='non_leaf')
             else:
                 # Chunk is not a constituent, returning mean embedding
-                return torch.mean(self.sim_model.emb(self.__convert_to_vocab(' '.join(chunk))), dim=0)
+                h_list = []
+                for token in chunk:
+                    h_list.append(self.get_chunk_representation(sentence, token, const_tree, idx_span_mapping, mode='leaf'))
+                final_h = torch.stack(h_list, dim=0)
+                return torch.mean(final_h, dim=0)
 
 
 if __name__ == '__main__':
-
-    # pickle_file = "/Users/manish.bansal/repos/search/treelstm.pytorch/checkpoints/best_model_cpu.pt"
     pickle_file = "/Users/manish.bansal/repos/search/treelstm.pytorch/checkpoints/best_model_with_states.pt"
-    sick_vocab_file = "/Users/manish.bansal/repos/search/treelstm.pytorch/data/sick/sick.vocab"
 
-    model = SimilarityTreeLSTM(vocab_size=2412, in_dim=300, mem_dim=150, hidden_dim=50, num_classes=5, sparsity=False,
+    glove_vocab, glove_emb_matrix = utils.load_keyed_vectors("/Users/manish.bansal/repos/search/treelstm.pytorch/data/glove/sample_glove")
+
+    model = SimilarityTreeLSTM(weight_matrix=glove_emb_matrix, in_dim=300, mem_dim=150, hidden_dim=50, num_classes=5, sparsity=False,
                                freeze=True, use_parse_tree="constituency")
 
     lib_dir = "/Users/manish.bansal/repos/search/treelstm.pytorch/lib"
@@ -185,5 +188,6 @@ if __name__ == '__main__':
 
     temp_dir = "/Users/manish.bansal/repos/search/treelstm.pytorch/temp"
 
-    chunk_embedding = ChunkEmbedding(model, pickle_file, sick_vocab_file, classpath, temp_dir, 123)
-    print chunk_embedding.get_embedding("A person is riding the bicycle on one wheel", ["the", "on"])
+    chunk_embedding = ChunkEmbedding(model, pickle_file, glove_vocab, classpath, temp_dir, 123)
+    tree, mapping = chunk_embedding.constituent_parse("Mall attackers used ` less is more ' strategy", tokenize=False)
+    print "done !!"

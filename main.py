@@ -64,47 +64,62 @@ def main():
     dev_dir = os.path.join(args.data, 'dev/')
     test_dir = os.path.join(args.data, 'test/')
 
-    # write unique words from all token files
-    sick_vocab_file = os.path.join(args.data, 'sick.vocab')
-    if not os.path.isfile(sick_vocab_file):
-        token_files_b = [os.path.join(split, 'b.toks') for split in [train_dir, dev_dir, test_dir]]
-        token_files_a = [os.path.join(split, 'a.toks') for split in [train_dir, dev_dir, test_dir]]
-        token_files = token_files_a + token_files_b
-        sick_vocab_file = os.path.join(args.data, 'sick.vocab')
-        utils.build_vocab(token_files, sick_vocab_file)
+    # emb_file = os.path.join(args.glove, 'glove.840B.300d.pth')
+    # vocab_file = os.path.join(args.glove, 'glove.840B.300d.vocab')
+    #
+    # if os.path.isfile(emb_file) and os.path.isfile(vocab_file):
+    #     glove_emb = torch.load(emb_file)
+    #     glove_vocab = torch.load(vocab_file)
+    # else:
+        # load glove embeddings and vocab
+    logger.debug('==> Reading GLOVE embeddings !!')
+    glove_vocab, glove_emb_matrix = utils.load_keyed_vectors(
+        os.path.join(args.glove, 'sample_glove'))
+    logger.debug('==> GLOVE vocabulary size: %d ' % glove_vocab.size())
+    # torch.save(glove_emb, emb_file)
+    # torch.save(glove_vocab, vocab_file)
 
-    # get vocab object from vocab file previously written
-    vocab = Vocab(filename=sick_vocab_file,
-                  data=[Constants.PAD_WORD, Constants.UNK_WORD,
-                        Constants.BOS_WORD, Constants.EOS_WORD])
-    logger.debug('==> SICK vocabulary size : %d ' % vocab.size())
+    # # write unique words from all token files
+    # sick_vocab_file = os.path.join(args.data, 'glove.840B.300d.vocab')
+    # if not os.path.isfile(sick_vocab_file):
+    #     token_files_b = [os.path.join(split, 'b.toks') for split in [train_dir, dev_dir, test_dir]]
+    #     token_files_a = [os.path.join(split, 'a.toks') for split in [train_dir, dev_dir, test_dir]]
+    #     token_files = token_files_a + token_files_b
+    #     sick_vocab_file = os.path.join(args.data, 'sick.vocab')
+    #     utils.build_vocab(token_files, sick_vocab_file)
+    #
+    # # get vocab object from vocab file previously written
+    # vocab = Vocab(filename=sick_vocab_file,
+    #               data=[Constants.PAD_WORD, Constants.UNK_WORD,
+    #                     Constants.BOS_WORD, Constants.EOS_WORD])
+    # logger.debug('==> SICK vocabulary size : %d ' % vocab.size())
 
     # load SICK dataset splits
     train_file = os.path.join(args.data, 'sick_train_{}.pth'.format(args.use_parse_tree))
     if os.path.isfile(train_file):
         train_dataset = torch.load(train_file)
     else:
-        train_dataset = SICKDataset(train_dir, vocab, args.num_classes, args.use_parse_tree)
+        train_dataset = SICKDataset(train_dir, glove_vocab, args.num_classes, args.use_parse_tree)
         torch.save(train_dataset, train_file)
     logger.debug('==> Size of train data   : %d ' % len(train_dataset))
     dev_file = os.path.join(args.data, 'sick_dev_{}.pth'.format(args.use_parse_tree))
     if os.path.isfile(dev_file):
         dev_dataset = torch.load(dev_file)
     else:
-        dev_dataset = SICKDataset(dev_dir, vocab, args.num_classes, args.use_parse_tree)
+        dev_dataset = SICKDataset(dev_dir, glove_vocab, args.num_classes, args.use_parse_tree)
         torch.save(dev_dataset, dev_file)
     logger.debug('==> Size of dev data     : %d ' % len(dev_dataset))
     test_file = os.path.join(args.data, 'sick_test_{}.pth'.format(args.use_parse_tree))
     if os.path.isfile(test_file):
         test_dataset = torch.load(test_file)
     else:
-        test_dataset = SICKDataset(test_dir, vocab, args.num_classes, args.use_parse_tree)
+        test_dataset = SICKDataset(test_dir, glove_vocab, args.num_classes, args.use_parse_tree)
         torch.save(test_dataset, test_file)
     logger.debug('==> Size of test data    : %d ' % len(test_dataset))
 
     # initialize model, criterion/loss_function, optimizer
     model = SimilarityTreeLSTM(
-        vocab.size(),
+        glove_emb_matrix,
         args.input_dim,
         args.mem_dim,
         args.hidden_dim,
@@ -116,26 +131,26 @@ def main():
 
     # for words common to dataset vocab and GLOVE, use GLOVE vectors
     # for other words in dataset vocab, use random normal vectors
-    emb_file = os.path.join(args.data, 'sick_embed.pth')
-    if os.path.isfile(emb_file):
-        emb = torch.load(emb_file)
-    else:
-        # load glove embeddings and vocab
-        glove_vocab, glove_emb = utils.load_word_vectors(
-            os.path.join(args.glove, 'glove.840B.300d'))
-        logger.debug('==> GLOVE vocabulary size: %d ' % glove_vocab.size())
-        emb = torch.zeros(vocab.size(), glove_emb.size(1), dtype=torch.float, device=device)
-        emb.normal_(0, 0.05)
-        # zero out the embeddings for padding and other special words if they are absent in vocab
-        for idx, item in enumerate([Constants.PAD_WORD, Constants.UNK_WORD,
-                                    Constants.BOS_WORD, Constants.EOS_WORD]):
-            emb[idx].zero_()
-        for word in vocab.labelToIdx.keys():
-            if glove_vocab.getIndex(word):
-                emb[vocab.getIndex(word)] = glove_emb[glove_vocab.getIndex(word)]
-        torch.save(emb, emb_file)
+    # emb_file = os.path.join(args.data, 'sick_embed.pth')
+    # if os.path.isfile(emb_file):
+    #     emb = torch.load(emb_file)
+    # else:
+    #     # load glove embeddings and vocab
+    #     glove_vocab, glove_emb = utils.load_word_vectors(
+    #         os.path.join(args.glove, 'glove.840B.300d'))
+    #     logger.debug('==> GLOVE vocabulary size: %d ' % glove_vocab.size())
+    #     emb = torch.zeros(vocab.size(), glove_emb.size(1), dtype=torch.float, device=device)
+    #     emb.normal_(0, 0.05)
+    #     # zero out the embeddings for padding and other special words if they are absent in vocab
+    #     for idx, item in enumerate([Constants.PAD_WORD, Constants.UNK_WORD,
+    #                                 Constants.BOS_WORD, Constants.EOS_WORD]):
+    #         emb[idx].zero_()
+    #     for word in vocab.labelToIdx.keys():
+    #         if glove_vocab.getIndex(word):
+    #             emb[vocab.getIndex(word)] = glove_emb[glove_vocab.getIndex(word)]
+    #     torch.save(emb, emb_file)
     # plug these into embedding matrix inside model
-    model.emb.weight.data.copy_(emb)
+    # model.emb.weight.data.copy_(glove_emb)
 
     model.to(device), criterion.to(device)
     if args.optim == 'adam':

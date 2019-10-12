@@ -60,16 +60,16 @@ def split(filepath, dst_dir):
         for line in datafile:
             i, a, b, sim, ent = line.strip().split('\t')
             idfile.write(i + '\n')
-            afile.write(a + '\n')
-            bfile.write(b + '\n')
+            afile.write(a.lower() + '\n')
+            bfile.write(b.lower() + '\n')
             simfile.write(sim + '\n')
 
 
 def parse(dirpath, cp=''):
     dependency_parse(os.path.join(dirpath, 'a.txt'), cp=cp, tokenize=True)
     dependency_parse(os.path.join(dirpath, 'b.txt'), cp=cp, tokenize=True)
-    constituency_parse(os.path.join(dirpath, 'a.txt'), cp=cp, tokenize=True)
-    constituency_parse(os.path.join(dirpath, 'b.txt'), cp=cp, tokenize=True)
+    constituency_parse(os.path.join(dirpath, 'a.txt'), cp=cp, tokenize=False)
+    constituency_parse(os.path.join(dirpath, 'b.txt'), cp=cp, tokenize=False)
 
 
 if __name__ == '__main__':

@@ -32,16 +32,21 @@ class Trainer(object):
             target = utils.map_label_to_target(label, dataset.num_classes)
             linput, rinput = linput.to(self.device), rinput.to(self.device)
             target = target.to(self.device)
-            output = self.model(ltree, linput, rtree, rinput)
-            loss = self.criterion(output, target)
-            total_loss += loss.item()
-            batch_loss += loss
-            if idx % self.args.batchsize == 0 and idx > 0:
-                self.optimizer.zero_grad()
-                batch_loss.backward()
-                # self.plot_grad_flow(self.model.named_parameters())
-                self.optimizer.step()
-                batch_loss = 0.0
+            try:
+                output = self.model(ltree, linput, rtree, rinput)
+                loss = self.criterion(output, target)
+                total_loss += loss.item()
+                batch_loss += loss
+                if idx % self.args.batchsize == 0 and idx > 0:
+                    self.optimizer.zero_grad()
+                    batch_loss.backward()
+                    # self.plot_grad_flow(self.model.named_parameters())
+                    self.optimizer.step()
+                    batch_loss = 0.0
+            except Exception as e:
+                print "Failed Train : linput : ", dataset.vocab.convertToLabels(linput.numpy(),
+                                                                 -1), " : ", "rinput : ", dataset.vocab.convertToLabels(
+                    rinput.numpy(), -1)
         self.epoch += 1
         return total_loss / len(dataset)
 
@@ -86,11 +91,16 @@ class Trainer(object):
                 target = utils.map_label_to_target(label, dataset.num_classes)
                 linput, rinput = linput.to(self.device), rinput.to(self.device)
                 target = target.to(self.device)
-                output = self.model(ltree, linput, rtree, rinput)
-                loss = self.criterion(output, target)
-                total_loss += loss.item()
-                output = output.squeeze().to('cpu')
-                predictions[idx] = torch.dot(indices, torch.exp(output))
+                try:
+                    output = self.model(ltree, linput, rtree, rinput)
+                    loss = self.criterion(output, target)
+                    total_loss += loss.item()
+                    output = output.squeeze().to('cpu')
+                    predictions[idx] = torch.dot(indices, torch.exp(output))
+                except Exception as e:
+                    print "Failed Test : linput : ", dataset.vocab.convertToLabels(linput.numpy(),
+                                                                     -1), " : ", "rinput : ", dataset.vocab.convertToLabels(
+                        rinput.numpy(), -1)
         return total_loss / len(dataset), predictions
 
     def test_sample(self, dataset):

@@ -149,9 +149,10 @@ class Similarity(nn.Module):
 
 # putting the whole model together
 class SimilarityTreeLSTM(nn.Module):
-    def __init__(self, vocab_size, in_dim, mem_dim, hidden_dim, num_classes, sparsity, freeze, use_parse_tree):
+    def __init__(self, weight_matrix, in_dim, mem_dim, hidden_dim, num_classes, sparsity, freeze, use_parse_tree):
         super(SimilarityTreeLSTM, self).__init__()
-        self.emb = nn.Embedding(vocab_size, in_dim, padding_idx=Constants.PAD, sparse=sparsity)
+        weight_matrix = torch.FloatTensor(weight_matrix)
+        self.emb = nn.Embedding.from_pretrained(embeddings=weight_matrix, padding_idx=Constants.PAD, sparse=sparsity)
         if freeze:
             self.emb.weight.requires_grad = False
 
