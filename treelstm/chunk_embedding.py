@@ -123,8 +123,14 @@ class ChunkEmbedding(object):
         dirpath = os.path.dirname(self.temp_dir)
         parentpath = os.path.join(dirpath, 'temp.cparents')
         tokpath = os.path.join(dirpath, 'temp.toks')
+        filepath = os.path.join(dirpath, 'temp.txt')
+
+        with open(filepath, 'w') as fp:
+            fp.write(sentence)
+
         tokenize_flag = '-tokenize - ' if tokenize else ''
-        cmd = ('java -cp %s MinimalConstituencyParse -tokpath %s -parentpath %s %s -sentence %s' % (self.classpath, tokpath, parentpath, tokenize_flag, '"' + sentence + '"'))
+        cmd = ('java -cp %s ConstituencyParse -tokpath %s -parentpath %s < %s' % (self.classpath, tokpath, parentpath, filepath))
+        # cmd = ('java -cp %s MinimalConstituencyParse -tokpath %s -parentpath %s %s -sentence %s' % (self.classpath, tokpath, parentpath, tokenize_flag, '"' + sentence + '"'))
         exit_status = os.system(cmd)
 
         if exit_status != 0:
@@ -137,7 +143,6 @@ class ChunkEmbedding(object):
         with open(parentpath, 'r') as pp:
             for line in pp:
                 parents = map(int, line.split())
-
         try:
             const_tree = self.__read_constituency_tree(parents, toks)
             const_tree.set_spans()
@@ -147,6 +152,10 @@ class ChunkEmbedding(object):
         except Exception as e:
             print "__read_constituency_tree failed :", sentence
             raise Exception("__read_constituency_tree failed")
+        finally:
+            fp.close()
+            tp.close()
+            pp.close()
 
     def get_embedding(self, sentence, chunk, const_tree, idx_span_mapping):
         sentence = sentence.strip().lower()
