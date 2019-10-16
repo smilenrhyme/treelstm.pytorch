@@ -74,7 +74,7 @@ def main():
         # load glove embeddings and vocab
     logger.debug('==> Reading GLOVE embeddings !!')
     glove_vocab, glove_emb_matrix = utils.load_keyed_vectors(
-        os.path.join(args.glove, 'sample_glove'))
+        os.path.join(args.glove, 'glove.840B.300d'))
     logger.debug('==> GLOVE vocabulary size: %d ' % glove_vocab.size())
     # torch.save(glove_emb, emb_file)
     # torch.save(glove_vocab, vocab_file)
