@@ -90,7 +90,7 @@ class ChunkEmbedding(object):
         indices = self.vocab.convertToIdx(sentence.split(), Constants.UNK_WORD)
         return torch.tensor(indices, dtype=torch.long, device='cpu')
 
-    def get_chunk_representation(self, sentence, chunk, const_tree=None, idx_span_mapping=None, mode='non_leaf'):
+    def get_chunk_representation(self, chunk, const_tree=None, idx_span_mapping=None, mode='non_leaf'):
         if mode == 'leaf':
             with torch.no_grad():
                 emb_input = self.sim_model.emb(self.__convert_to_vocab(chunk))
@@ -108,7 +108,7 @@ class ChunkEmbedding(object):
                 return "Error in finding chunk index"
 
             with torch.no_grad():
-                emb_input = self.sim_model.emb(self.__convert_to_vocab(sentence))
+                emb_input = self.sim_model.emb(self.__convert_to_vocab(chunk_string))
                 idx_state = {}
                 self.sim_model.model(const_tree, emb_input, idx_state)
                 return idx_state[chunk_idx][1]
@@ -166,17 +166,17 @@ class ChunkEmbedding(object):
             return torch.zeros(1, 1)
 
         if len(chunk) == 1:
-            return self.get_chunk_representation(sentence, chunk[0], const_tree, idx_span_mapping, mode='leaf')
+            return self.get_chunk_representation(chunk[0], const_tree, idx_span_mapping, mode='leaf')
         else:
             # check chunk is constituent or not
             if ' '.join(chunk) in idx_span_mapping.values():
                 # Get non_leaf tree-LSTM representation
-                return self.get_chunk_representation(sentence, chunk, const_tree, idx_span_mapping, mode='non_leaf')
+                return self.get_chunk_representation(chunk, const_tree, idx_span_mapping, mode='non_leaf')
             else:
                 # Chunk is not a constituent, returning mean embedding
                 h_list = []
                 for token in chunk:
-                    h_list.append(self.get_chunk_representation(sentence, token, const_tree, idx_span_mapping, mode='leaf'))
+                    h_list.append(self.get_chunk_representation(token, const_tree, idx_span_mapping, mode='leaf'))
                 final_h = torch.stack(h_list, dim=0)
                 return torch.mean(final_h, dim=0)
 
